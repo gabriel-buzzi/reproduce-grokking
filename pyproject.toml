@@ -1,0 +1,33 @@
+[project]
+authors = [{name = "Gabriel Buzzi Sanches", email = "gabrielbuzzi2@gmail.com"}]
+dependencies = []
+name = "grokking"
+requires-python = ">= 3.11"
+version = "0.1.0"
+
+[tool.ruff]
+# Set the maximum line length to 79.
+line-length = 79
+exclude = ["notebooks"]
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+
+[tool.pixi.pypi-dependencies]
+grokking = { path = ".", editable = true }
+
+[tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+numpy = ">=2.4.0,<3"
+scipy = ">=1.16.3,<2"
+ipykernel = ">=7.1.0,<8"
+jax = ">=0.7.2,<0.8"
+matplotlib = ">=3.10.8,<4"
+tqdm = ">=4.67.1,<5"
+
