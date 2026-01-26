@@ -1,6 +1,52 @@
+# %%
 import numpy as np
 
-#TODO: this needs to be improved
+
+# %%
+class Tokenizer:
+    def __init__(self, max_operands_value: int):
+        self.vocab = []
+        self.max_operands_value = max_operands_value
+        self.vocab.extend([str(i) for i in range(self.max_operands_value + 1)])
+        self.special_tokens = ["+", "=", "[PAD]", "[START]", "[END]", "[MASK]"]
+        self.vocab.extend(self.special_tokens)
+        self.one_hots = list(map(tuple, np.diag(np.full(len(self.vocab), 1)).tolist()))
+        self.token2onehot = dict(zip(self.vocab, self.one_hots))
+        self.onehot2token = dict(zip(self.one_hots, self.vocab))
+
+    def _get_token_idx(self, token):
+        return np.where(np.array(self.vocab) == token)[0]
+
+    def tokenize(self, text):
+
+        if isinstance(text, str):
+            tokens = text.split()
+
+        embeddings = []
+        for token in tokens:
+            embeddings.append(self.token2onehot[token])
+
+        return embeddings
+    
+    def detokenize(self, embeddings):
+        tokens = []
+        for embedding in embeddings:
+            tokens.append(self.onehot2token[tuple(embedding)])
+        
+        return tokens
+
+
+# %%
+tokenizer = Tokenizer(3)
+embeddings = tokenizer.tokenize("[START] 1 + 2 = 3 [END]")
+print(embeddings)
+tokens = tokenizer.detokenize(embeddings)
+print(tokens)
+
+# %%
+
+
+# TODO: this needs to be improved
 # It might be interesting to generate data in the form of text
 # and have a tokenizer that can convert from text to one-hot and
 # back from one-hot to text.
@@ -19,7 +65,7 @@ def generate(
     end[-3] = 1
     pad = np.zeros((vocab_size,))  # padding token
     pad[-4] = 1
-    mask = np.zeros((vocab_size, ))
+    mask = np.zeros((vocab_size,))
     mask[-5] = 1
 
     for i in range(max_operands_value):
@@ -45,7 +91,7 @@ def generate(
 
             X.append(x)
 
-    attention_mask = [*[0]*6, *[-float("inf")]*(max_seq_length-6)]
+    attention_mask = [*[0] * 6, *[-float("inf")] * (max_seq_length - 6)]
 
     X = np.array(X)
 
