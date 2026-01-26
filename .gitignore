@@ -3,3 +3,7 @@
 !.pixi/config.toml
 ./data/*
 *.pyc
+
+# Hydra output files
+**/outputs/*
+**/multirun/*

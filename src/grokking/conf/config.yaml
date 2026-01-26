@@ -1,0 +1,12 @@
+max_seq_length: 16
+max_operands_value: 5
+vocab_size: 10  # max_operands_value + 5 for special tokens
+num_heads: 8
+emb_size: 32
+num_layers: 4
+feed_forward_size: 128
+dropout_rate: 0.2
+param_seed: 42
+
+default:
+  - _self_
