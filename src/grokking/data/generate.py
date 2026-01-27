@@ -1,102 +1,94 @@
-# %%
 import numpy as np
 
-
-# %%
 class Tokenizer:
     def __init__(self, max_operands_value: int):
         self.vocab = []
         self.max_operands_value = max_operands_value
-        self.vocab.extend([str(i) for i in range(self.max_operands_value + 1)])
-        self.special_tokens = ["+", "=", "[PAD]", "[START]", "[END]", "[MASK]"]
+        self.digits = [i for i in range(self.max_operands_value + 1)]
+        self.vocab.extend(list(map(str, self.digits)))
+        self.special_tokens = [
+            "+",
+            "=",
+            "%",
+            "[PAD]",
+            "[START]",
+            "[END]",
+            "[MASK]",
+        ]
         self.vocab.extend(self.special_tokens)
-        self.one_hots = list(map(tuple, np.diag(np.full(len(self.vocab), 1)).tolist()))
+        self.one_hots = list(
+            map(tuple, np.diag(np.full(len(self.vocab), 1)).tolist())
+        )
         self.token2onehot = dict(zip(self.vocab, self.one_hots))
         self.onehot2token = dict(zip(self.one_hots, self.vocab))
+        self.vocab_size = len(self.vocab)
 
-    def _get_token_idx(self, token):
-        return np.where(np.array(self.vocab) == token)[0]
-
-    def tokenize(self, text):
-
+    def _tokenize_sequence(self, text):
         if isinstance(text, str):
             tokens = text.split()
 
         embeddings = []
         for token in tokens:
-            embeddings.append(self.token2onehot[token])
+            embeddings.append(self.token2onehot[token.strip()])
 
         return embeddings
-    
-    def detokenize(self, embeddings):
+
+    def tokenize(self, input_data):
+        if isinstance(input_data, str):
+            return self._tokenize_sequence(input_data)
+        elif isinstance(input_data, list):
+            return [self._tokenize_sequence(seq) for seq in input_data]
+        else:
+            raise Exception(
+                "Tokenizer.tokenize() input_data is not str nor list[str]."
+                f"Received {type(input_data)} instead."
+            )
+
+    def _detokenize_sequence(self, embeddings):
         tokens = []
         for embedding in embeddings:
             tokens.append(self.onehot2token[tuple(embedding)])
-        
+
+        # return " ".join(tokens)
         return tokens
-
-
-# %%
-tokenizer = Tokenizer(3)
-embeddings = tokenizer.tokenize("[START] 1 + 2 = 3 [END]")
-print(embeddings)
-tokens = tokenizer.detokenize(embeddings)
-print(tokens)
-
-# %%
-
-
-# TODO: this needs to be improved
-# It might be interesting to generate data in the form of text
-# and have a tokenizer that can convert from text to one-hot and
-# back from one-hot to text.
-def generate(
-    p: int = 5, max_operands_value: int = 5, max_seq_length: int = 16
-) -> tuple[np.ndarray, np.ndarray]:
-    X = []
-    # vocab_size is the max possible operand value plus four,
-    # for start, end, pedding, mask and equal tokens
-    vocab_size = max_operands_value + 5
-    start = np.zeros((vocab_size,))  # start token
-    start[-1] = 1
-    equal = np.zeros((vocab_size,))  # equal token
-    equal[-2] = 1
-    end = np.zeros((vocab_size,))  # end token
-    end[-3] = 1
-    pad = np.zeros((vocab_size,))  # padding token
-    pad[-4] = 1
-    mask = np.zeros((vocab_size,))
-    mask[-5] = 1
-
-    for i in range(max_operands_value):
-        for j in range(max_operands_value):
-            x1 = np.zeros((vocab_size,))
-            x2 = np.zeros((vocab_size,))
-            y = np.zeros((vocab_size,))
-            x1[i] = 1
-            x2[j] = 1
-            y[(i + j) % p] = 1
-
-            x = np.vstack(
-                [
-                    start,
-                    x1,
-                    x2,
-                    equal,
-                    y,
-                    end,
-                    *[pad for _ in range(max_seq_length - 6)],
-                ]
+    
+    def detokenize(self, input_data):
+        if isinstance(input_data[0][0], int):
+            return self._detokenize_sequence(input_data)
+        elif isinstance(input_data[0][0], list):
+            return [self._detokenize_sequence(seq) for seq in input_data]
+        else:
+            raise Exception(
+                "Tokenizer.tokenize() input_data is not list[int] nor list[list]."
+                f"Received {type(input_data)}[{type(input_data[0])}] instead."
             )
 
-            X.append(x)
+def generate(
+    mod_operand: int = 5, max_operands_value: int = 5, max_seq_length: int = 16
+) -> tuple[np.ndarray, np.ndarray]:
+    """ Returns a dataset with shape (n_samples, max_seq_length, vocab_size) """
+    tokenizer = Tokenizer(max_operands_value)
 
-    attention_mask = [*[0] * 6, *[-float("inf")] * (max_seq_length - 6)]
+    text_data = []
+    masked_text_data = []
+    attenntion_masks = []
 
-    X = np.array(X)
+    for a in tokenizer.digits:
+        for b in tokenizer.digits:
+            result = (a + b) % mod_operand
 
-    return X, mask, attention_mask
+            sample = f"{a} + {b} % {mod_operand} = {result} [END] "
+            masked_sample = f"[START] {a} + {b} % {mod_operand} = [MASK] [END] "
 
+            padding_size = max_seq_length - len(masked_sample.split())
+            padding = " ".join(["[PAD]"] * padding_size)
+            attenntion_mask = [0]*len(masked_sample.split()) + [float("-inf")]*padding_size
 
-if __name__ == "__main__":
-    inputs, outputs = generate()
+            sample += padding + " [PAD]" # Additional padding token due to output shift
+            masked_sample += padding
+
+            text_data.append(sample)
+            masked_text_data.append(masked_sample)
+            attenntion_masks.append(attenntion_mask)
+
+    return masked_text_data, text_data, attenntion_masks
