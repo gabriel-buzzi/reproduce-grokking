@@ -3,14 +3,16 @@ import jax.numpy as jnp
 from grokking.model.transformer import decoder_only
 import functools as ft
 import itertools as it
-from grokking.data.generate import generate
+from grokking.data.generate import generate, Tokenizer
 from tqdm import tqdm
 from omegaconf import DictConfig
 import hydra
+from matplotlib import pyplot as plt
 
 DTYPE = jnp.float32
 
-def init_param_state(config: DictConfig) -> dict:
+
+def init_param_state(config: DictConfig, vocab_size: int) -> dict:
     # Define the root key to be splited
     root_key = jax.random.key(config.param_seed)
     # Defines the iterator that will split the key
@@ -25,7 +27,7 @@ def init_param_state(config: DictConfig) -> dict:
     # Start defining params
     params = {
         "embeddings": he_init(
-            next(key), (config.vocab_size, config.emb_size), dtype
+            next(key), (vocab_size, config.emb_size), dtype
         ),
         "layers": {},
     }
@@ -87,50 +89,80 @@ def init_train_state(config: DictConfig) -> dict:
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(config: DictConfig) -> None:
-    X, mask_token, attention_mask = generate(
+    masked_text_data, text_data, att_mask_data = generate(
+        mod_operand=config.mod_operand,
         max_operands_value=config.max_operands_value,
         max_seq_length=config.max_seq_length,
     )
-    X = jnp.array(X)
-    attention_mask = jnp.array(attention_mask)
 
-    params = init_param_state(config)
+    tokenizer = Tokenizer(config.max_operands_value)
+    embeddings_data = tokenizer.tokenize(text_data)
+    embeddings_masked_data = tokenizer.tokenize(masked_text_data)
 
-    lr = 1e-3
+    X = jnp.array(embeddings_masked_data)
+    Y = jnp.array(embeddings_data)
+    M = jnp.array(att_mask_data)
 
-    print("Training: ")
+    vocab_size = tokenizer.vocab_size
+
+    lr = config.learning_rate
+    batch_size = config.batch_size
+
     model = ft.partial(
-        decoder_only, config=config, attention_mask=attention_mask
+        decoder_only, config=config
     )
     # TODO: make this stochastic gradient descent
-    for step in tqdm(range(50)):
-        # params = jax.tree.map(jax.ref.get, train_state["params"])
-        def loss_fn(params, X, y_true):
-            logits, probs = model(params, X)
-            y_pred = probs[:, 3, :]
-            return (1 - jnp.sum(y_true * y_pred)) ** 2
+    params = init_param_state(config, vocab_size)
+    train_losses = []
+    target_token_idx = 6
+    for step in tqdm(range(config.n_train_steps)):
+        step_loss = 0
+        n_batches = len(X) // batch_size
+        for batch in range(n_batches):
+            batch_slice = slice(batch * batch_size, (batch + 1) * batch_size)
+            X_batch = X[batch_slice]
+            Y_batch = Y[batch_slice]
+            M_batch = M[batch_slice]
 
-        y_true = X[:, 4]
-        loss, grad = jax.value_and_grad(loss_fn, argnums=0)(params, X, y_true)
+            def loss_fn(params, X, Y, M):
+                logits, probs = model(params, X, attention_mask=M)
+                #TODO: Review this loss calculations and think how to avoid this hardcoded target token index
+                y_pred = probs[:, target_token_idx, :]
+                y_true = Y[:, target_token_idx]
+                return (1 - jnp.sum(y_true * y_pred)) ** 2
 
-        # TODO: Implement Adam instead of SGD
-        params = jax.tree.map(lambda w, d: w - lr * d, params, grad)
+            batch_loss, grad = jax.value_and_grad(loss_fn, argnums=0)(
+                params, X_batch, Y_batch, M_batch
+            )
+
+            step_loss += batch_loss #/ n_batches
+
+            # TODO: Implement Adam instead of SGD
+            params = jax.tree.map(lambda w, d: w - lr * d, params, grad)
 
         if step % 10 == 0:
-            print(loss)
+            print(step_loss)
 
-    _, y_hat = model(params, X)
-    print(f"{y_hat.shape=}")
-    y_hat_idx = jnp.argmax(y_hat, axis=-1)
+        train_losses.append(step_loss)
 
-    op1 = jnp.argmax(X, axis=-1)[:, 1]
-    op2 = jnp.argmax(X, axis=-1)[:, 2]
-    y_true = jnp.argmax(X, axis=-1)[:, 4]
-    y_pred = y_hat_idx[:, 4]
+    plt.plot(train_losses, label="train loss", marker="o")
+    plt.yscale("log")
+    plt.xscale("log")
+    plt.legend()
+    plt.savefig("history.png", dpi=300)
+    plt.close()
 
-    for i in range(len(op1)):
-        print(f"({op1[i]}, {op2[i]}) = {y_true[i]}, got {y_pred[i]}")
+    _, y_hat = model(params=params, x=X, attention_mask=M)
+    target_indice = jnp.argmax(y_hat, axis=-1)
+    y_hat_one_hots = jax.nn.one_hot(target_indice, num_classes=y_hat.shape[-1])
 
+    y_hat = tokenizer.detokenize(y_hat_one_hots.tolist())
+    y_true = tokenizer.detokenize(Y.tolist())
+
+    for i in range(len(Y)):
+        print(f"Case {i}")
+        print(y_true[i][target_token_idx])
+        print(y_hat[i][target_token_idx])
 
 if __name__ == "__main__":
     main()
