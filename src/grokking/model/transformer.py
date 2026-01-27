@@ -163,20 +163,25 @@ def decoder_only(params, x, config, attention_mask):
             (config.max_seq_length, config.max_seq_length), float("-inf")
         )
         causal_mask = jnp.triu(causal_mask, k=1)
-        pad_mask = jnp.vstack([attention_mask] * len(attention_mask))
+        pad_mask = jax.vmap(
+            lambda mask: jnp.vstack([mask] * len(mask)), in_axes=(0,)
+        )(attention_mask)
         mask = causal_mask + pad_mask
 
         batch_multihead_attention = jax.vmap(
-            lambda x: multihead_self_attention(
-                config, att_params, x, mask=mask
+            lambda x, m: multihead_self_attention(
+                config, att_params, x, mask=m
             ),
-            in_axes=(0,),
+            in_axes=(
+                0,
+                0,
+            ),
         )
         # print(f"{att_params['W_q'].shape=}")
         # print(f"{att_params['W_k'].shape=}")
         # print(f"{att_params['W_v'].shape=}")
         # print(f"{encoded_embs.shape=}")
-        multihead_att = batch_multihead_attention(encoded_embs)
+        multihead_att = batch_multihead_attention(encoded_embs, mask)
         # print(f"{multihead_att.shape=}")
 
         # Add & Norm
