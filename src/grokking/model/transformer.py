@@ -122,17 +122,17 @@ def dropout(X, key, rate, training=False):
     return (X * mask) / keep_prob
 
 
-def feed_forward(params, X):
+def feed_forward(params, X, key=None):
     # print(f"{X.shape=}")
     # print(f"{params['linear_in']['W'].shape=}")
     # print(f"{params['linear_in']['b'].shape=}")
     feed_forwarded_in = jax.nn.relu(linear(params["linear_in"], X))
-    # droppedout = dropout(feed_forwarded_in, params["dropout_key"], 0.2, True)
+    # droppedout = dropout(feed_forwarded_in, key, 0.2, True)
     feed_forwarded_out = linear(params["linear_out"], feed_forwarded_in)
     return feed_forwarded_out
 
 
-def decoder_only(params, x, config, attention_mask):
+def decoder_only(params, x, config, attention_mask, key):
     # x.shape = (batch_size, seq_length, vocab_size)
 
     # Embedding
