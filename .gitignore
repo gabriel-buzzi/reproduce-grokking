@@ -7,3 +7,5 @@
 # Hydra output files
 **/outputs/*
 **/multirun/*
+
+checkpoints
