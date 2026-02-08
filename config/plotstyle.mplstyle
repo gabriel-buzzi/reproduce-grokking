@@ -1,0 +1,42 @@
+#### ELSEVIER 1.5-COLUMN CONFIGURATION ####
+
+## FIGURE
+figure.figsize:     5.51, 3.525 # Elsevier 1.5-column
+figure.dpi:         300
+figure.facecolor:   none
+figure.edgecolor:   none
+
+## AXES
+axes.facecolor:     none
+axes.linewidth:     0.8
+axes.grid:          False
+axes.titlesize:     11
+axes.labelsize:     10
+axes.labelweight:   normal
+# Okabe-Ito Colorblind-safe cycle
+axes.prop_cycle:    cycler('color', ['0072B2', 'D55E00', '009E73', 'CC79A7', 'F0E442', '56B4E9'])
+
+## TICKS
+xtick.direction:    in
+ytick.direction:    in
+xtick.major.size:   4
+xtick.minor.size:   2
+xtick.labelsize:    9
+ytick.labelsize:    9
+xtick.top:          True
+ytick.right:        True
+
+## FONT
+# Using sans-serif is also common in Elsevier for "Arial" feel, 
+# but serif (Times) is standard for body-matching text.
+font.family:        serif
+font.serif:         DejaVu Serif, Times New Roman, Times, Palatino
+font.size:          10
+text.usetex:        False 
+
+## SAVING
+savefig.dpi:         300
+savefig.format:      pdf
+savefig.transparent: True
+savefig.bbox:        tight
+savefig.pad_inches:  0.05
